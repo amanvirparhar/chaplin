@@ -11,12 +11,15 @@ Watch a demo of Chaplin [here](https://youtu.be/qlHi0As2alQ).
 ## Setup
 
 1. Clone the repository, and `cd` into it:
-   ```bash
+   ```sh
    git clone https://github.com/amanvirparhar/chaplin
    cd chaplin
    ```
-2. Download the required model components: [LRS3_V_WER19.1](https://drive.google.com/file/d/1t8RHhzDTTvOQkLQhmK1LZGnXRRXOXGi6/view) and [lm_en_subword](https://drive.google.com/file/d/1g31HGxJnnOwYl17b70ObFQZ1TSnPvRQv/view).
-3. Unzip both folders, and place them in their respective directories:
+2. Run the setup script...
+   ```sh
+   ./setup.sh
+   ```
+   ...which will automatically download the required model files from Hugging Face Hub and place them in the appropriate directories:
    ```
    chaplin/
    ├── benchmarks/
@@ -27,15 +30,15 @@ Watch a demo of Chaplin [here](https://youtu.be/qlHi0As2alQ).
                ├── LRS3_V_WER19.1/
    ├── ...
    ```
-4. Install and run `ollama`, and pull the [`llama3.2`](https://ollama.com/library/llama3.2) model.
-5. Install [`uv`](https://github.com/astral-sh/uv).
+3. Install and run `ollama`, and pull the [`qwen3:4b`](https://ollama.com/library/qwen3:4b) model.
+4. Install [`uv`](https://github.com/astral-sh/uv).
 
 ## Usage
 
 1. Run the following command:
-   ```bash
-   sudo uv run --with-requirements requirements.txt --python 3.12 main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe
+   ```sh
+   uv run --with-requirements requirements.txt --python 3.12 main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe
    ```
 2. Once the camera feed is displayed, you can start "recording" by pressing the `option` key (Mac) or the `alt` key (Windows/Linux), and start mouthing words.
-3. To stop recording, press the `option` key (Mac) or the `alt` key (Windows/Linux) again. You should see some text being typed out wherever your cursor is.
+3. To stop recording, press the `option` key (Mac) or the `alt` key (Windows/Linux) again. The raw VSR output will get logged in your terminal, and the LLM-corrected version will be typed at your cursor.
 4. To exit gracefully, focus on the window displaying the camera feed and press `q`.

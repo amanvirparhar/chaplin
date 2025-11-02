@@ -10,4 +10,4 @@ torchvision
 torchaudio
 ollama
 pydantic
-keyboard
+pynput

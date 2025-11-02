@@ -29,5 +29,5 @@ dist/
 build/
 *.egg
 *.egg-info/
-benchmarks/LRS3/language_models/lm_en_subword/
-benchmarks/LRS3/models/LRS3_V_WER19.1/
+benchmarks/**
+*.mp4
