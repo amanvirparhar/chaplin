@@ -20,3 +20,8 @@ detector: retinaface
 dst_filename: null
 gpu_idx: 0
 output_subdir: null
+camera_index: 0
+llm:
+  model: "ollama:qwen3:4b"
+  system_prompt: null
+  options: {}

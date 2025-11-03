@@ -1,0 +1,32 @@
+[project]
+name = "chaplin"
+version = "0.1.0"
+description = "Visual speech recognition tool that lipreads and corrects text locally."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "hydra-core>=1.3.2",
+    "opencv-python>=4.5.5.62",
+    "scipy>=1.3.0",
+    "scikit-image>=0.13.0",
+    "av>=10.0.0",
+    "six>=1.16.0",
+    "mediapipe",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "ollama",
+    "llm",
+    "llm-ollama",
+    "pydantic",
+    "pynput",
+]
+
+[project.urls]
+homepage = "https://github.com/amanvirparhar/chaplin"
+
+[tool.uv]
+package = false
+
+[project.optional-dependencies]
+gemini = ["llm-gemini"]
