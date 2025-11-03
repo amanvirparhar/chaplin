@@ -6,7 +6,9 @@ from chaplin import Chaplin
 
 @hydra.main(version_base=None, config_path="hydra_configs", config_name="default")
 def main(cfg):
-    chaplin = Chaplin()
+    llm_cfg = cfg.llm if "llm" in cfg else None
+    camera_idx = getattr(cfg, "camera_index", 0)
+    chaplin = Chaplin(llm_config=llm_cfg, camera_index=camera_idx)
 
     # load the model
     chaplin.vsr_model = InferencePipeline(

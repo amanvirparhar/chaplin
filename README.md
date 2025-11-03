@@ -30,15 +30,41 @@ Watch a demo of Chaplin [here](https://youtu.be/qlHi0As2alQ).
                ├── LRS3_V_WER19.1/
    ├── ...
    ```
-3. Install and run `ollama`, and pull the [`qwen3:4b`](https://ollama.com/library/qwen3:4b) model.
+3. Install and run `ollama`, then pull the [`qwen3:4b`](https://ollama.com/library/qwen3:4b) model—this is the default LLM used through [Simon Willison's `llm` library](https://llm.datasette.io/).  
+   To use a different backend such as Gemini, OpenAI, or Mistral:
+   ```sh
+   uv sync --extra gemini                   # installs optional deps from pyproject for Gemini support
+   export LLM_GEMINI_API_KEY=sk-...         # set provider key (or add it to .env)
+   CHAPLIN_LLM_MODEL=gemini:flash-2.5 \     # or use Hydra override: llm.model="gemini:flash-2.5"
+     uv run main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe
+   ```
+   For other providers, install their plugin manually via `uv pip install llm-<provider>` and set the matching API key (see `.env.example` for guidance).
 4. Install [`uv`](https://github.com/astral-sh/uv).
+5. Install the Python dependencies declared in `pyproject.toml`:
+   ```sh
+   uv sync                     # add --extra gemini if you need the Gemini plugin
+   ```
 
 ## Usage
 
 1. Run the following command:
    ```sh
-   uv run --with-requirements requirements.txt --python 3.12 main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe
+   uv run main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe
    ```
 2. Once the camera feed is displayed, you can start "recording" by pressing the `option` key (Mac) or the `alt` key (Windows/Linux), and start mouthing words.
 3. To stop recording, press the `option` key (Mac) or the `alt` key (Windows/Linux) again. The raw VSR output will get logged in your terminal, and the LLM-corrected version will be typed at your cursor.
 4. To exit gracefully, focus on the window displaying the camera feed and press `q`.
+   - If you only see a black window, ensure your terminal has camera permissions (System Settings → Privacy & Security → Camera on macOS) and that no other app is using the webcam. You can pick a different device with `camera_index=<n>` (for example `uv run main.py ... camera_index=1`).
+
+## LLM configuration
+
+Chaplin relies on the `llm` Python library for its text-correction step. By default it targets the local Ollama model `ollama:qwen3:4b`, but you can point it at any other `llm` model:
+
+- Override from the command line using Hydra:  
+  ```sh
+  uv run main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe \
+    llm.model="gemini:flash-2.5"
+  ```
+- Or set environment variables:  
+  `CHAPLIN_LLM_MODEL` (model id), `CHAPLIN_LLM_OPTIONS` (JSON dict of provider options), and `CHAPLIN_LLM_SYSTEM_PROMPT` (custom system instructions).
+- Plugins and keys: install the relevant `llm-*` plugin (for example `pip install llm-gemini`) and ensure the provider-specific environment variables—such as `LLM_GEMINI_API_KEY`—are set before launching Chaplin.
