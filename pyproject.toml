@@ -30,3 +30,4 @@ package = false
 
 [project.optional-dependencies]
 gemini = ["llm-gemini"]
+azure = ["azure-cognitiveservices-speech>=1.37.0"]

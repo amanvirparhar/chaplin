@@ -68,3 +68,20 @@ Chaplin relies on the `llm` Python library for its text-correction step. By defa
 - Or set environment variables:  
   `CHAPLIN_LLM_MODEL` (model id), `CHAPLIN_LLM_OPTIONS` (JSON dict of provider options), and `CHAPLIN_LLM_SYSTEM_PROMPT` (custom system instructions).
 - Plugins and keys: install the relevant `llm-*` plugin (for example `pip install llm-gemini`) and ensure the provider-specific environment variables—such as `LLM_GEMINI_API_KEY`—are set before launching Chaplin.
+
+## Output modes
+
+By default Chaplin uses `pynput` to type the corrected text into the active window. You can switch the output behaviour without touching the code:
+
+- Keep typing (default): ensure `output.mode=typing` in your Hydra config (or leave it unset).
+- Azure TTS: install the optional dependency and set the Azure credentials before launching Chaplin:
+  ```sh
+  uv sync --extra azure
+  export CHAPLIN_OUTPUT_MODE=azure_tts
+  export CHAPLIN_AZURE_SPEECH_KEY=<your-azure-key>
+  export CHAPLIN_AZURE_SPEECH_REGION=uksouth     # e.g. uksouth
+  export CHAPLIN_AZURE_SPEECH_VOICE=en-GB-SoniaNeural  # optional, defaults to this value
+  ```
+  You can also provide the same values via the Hydra config (`output.mode=azure_tts`, `output.azure.region=uksouth`, etc.).
+
+When Azure TTS is active the corrected text is spoken through the system's default audio device instead of being typed.

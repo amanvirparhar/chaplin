@@ -25,3 +25,9 @@ llm:
   model: "ollama:qwen3:4b"
   system_prompt: null
   options: {}
+output:
+  mode: typing
+  azure:
+    key: null
+    region: null
+    voice: "en-GB-SoniaNeural"

@@ -36,10 +36,73 @@ DEFAULT_SYSTEM_PROMPT = (
 ENV_MODEL_NAME = "CHAPLIN_LLM_MODEL"
 ENV_SYSTEM_PROMPT = "CHAPLIN_LLM_SYSTEM_PROMPT"
 ENV_OPTIONS = "CHAPLIN_LLM_OPTIONS"
+ENV_OUTPUT_MODE = "CHAPLIN_OUTPUT_MODE"
+ENV_AZURE_SPEECH_KEY = "CHAPLIN_AZURE_SPEECH_KEY"
+ENV_AZURE_SPEECH_REGION = "CHAPLIN_AZURE_SPEECH_REGION"
+ENV_AZURE_SPEECH_VOICE = "CHAPLIN_AZURE_SPEECH_VOICE"
+
+
+class TypingOutputHandler:
+    """Output handler that types text using the system keyboard."""
+
+    def __init__(self, kbd_controller: keyboard.Controller):
+        self._controller = kbd_controller
+
+    async def deliver(self, text: str) -> None:
+        await asyncio.to_thread(self._controller.type, text)
+
+
+class AzureSpeechOutputHandler:
+    """Output handler that sends text to Azure Speech for TTS playback."""
+
+    def __init__(self, subscription_key: str, region: str, voice: str):
+        try:
+            import azure.cognitiveservices.speech as speechsdk
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise RuntimeError(
+                "Azure TTS output selected but 'azure-cognitiveservices-speech' is not "
+                "installed. Install the optional dependency with "
+                "'pip install chaplin[azure]' or 'pip install azure-cognitiveservices-speech'."
+            ) from exc
+
+        self._speechsdk = speechsdk
+        speech_config = speechsdk.SpeechConfig(
+            subscription=subscription_key,
+            region=region,
+        )
+        speech_config.speech_synthesis_voice_name = voice
+
+        audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
+        self._synthesizer = speechsdk.SpeechSynthesizer(
+            speech_config=speech_config,
+            audio_config=audio_config,
+        )
+        print(
+            f"\n\033[48;5;33m\033[97m\033[1m AZURE TTS ENABLED \033[0m:"
+            f" voice={voice} region={region}\n"
+        )
+
+    async def deliver(self, text: str) -> None:
+        def _speak():
+            # speak_text_async returns a future to avoid blocking the thread pool
+            result = self._synthesizer.speak_text_async(text).get()
+            if result.reason == self._speechsdk.ResultReason.Canceled:
+                details = result.cancellation_details
+                message = "Azure Speech synthesis was canceled."
+                if details.reason == self._speechsdk.CancellationReason.Error and details.error_details:
+                    message += f" Error details: {details.error_details}"
+                raise RuntimeError(message)
+
+        await asyncio.to_thread(_speak)
 
 
 class Chaplin:
-    def __init__(self, llm_config: Optional[Dict[str, Any]] = None, camera_index: int = 0):
+    def __init__(
+        self,
+        llm_config: Optional[Dict[str, Any]] = None,
+        output_config: Optional[Dict[str, Any]] = None,
+        camera_index: int = 0,
+    ):
         self.vsr_model = None
         self.camera_index = camera_index
 
@@ -70,14 +133,20 @@ class Chaplin:
         self.typing_lock = None  # will be created in async loop
         self._init_async_resources()
 
-        # setup global hotkey for toggling recording with option/alt key
-        self.hotkey = keyboard.GlobalHotKeys({
-            '<alt>': self.toggle_recording
-        })
-        self.hotkey.start()
+        # setup key listener for toggling recording with option/alt key
+        self._alt_keys = {
+            keyboard.Key.alt,
+            getattr(keyboard.Key, "alt_l", None),
+            getattr(keyboard.Key, "alt_r", None),
+        }
+        self._alt_keys.discard(None)
+        self.key_listener = keyboard.Listener(
+            on_release=self._handle_key_release
+        )
+        self.key_listener.start()
 
         # LLM configuration
-        normalized_llm_config = self._normalize_llm_config(llm_config)
+        normalized_llm_config = self._normalize_mapping_config(llm_config)
         env_model = os.getenv(ENV_MODEL_NAME)
         env_system_prompt = os.getenv(ENV_SYSTEM_PROMPT)
 
@@ -91,6 +160,9 @@ class Chaplin:
         self.llm_options = self._load_llm_options(normalized_llm_config)
         self._llm_model = None
         self._llm_model_is_async = False
+        self.output_handler = self._initialize_output_handler(
+            self._normalize_mapping_config(output_config)
+        )
 
     def _run_event_loop(self):
         asyncio.set_event_loop(self.loop)
@@ -106,6 +178,10 @@ class Chaplin:
         """Create asyncio.Lock and Condition in the event loop's context"""
         self.typing_lock = asyncio.Lock()
         self.typing_condition = asyncio.Condition(self.typing_lock)
+
+    def _handle_key_release(self, key):
+        if key in self._alt_keys:
+            self.toggle_recording()
 
     def toggle_recording(self):
         # toggle recording when alt/option key is pressed
@@ -154,7 +230,7 @@ class Chaplin:
                 await self.typing_condition.wait()
 
             # this task's turn to type the corrected text
-            self.kbd_controller.type(chat_output.corrected_text)
+            await self.output_handler.deliver(chat_output.corrected_text)
 
             # increment sequence and notify next task
             self.next_sequence_to_type += 1
@@ -185,8 +261,47 @@ class Chaplin:
             "video_path": video_path
         }
 
-    def _normalize_llm_config(self, llm_config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        if llm_config is None:
+    def _initialize_output_handler(self, output_config: Dict[str, Any]):
+        mode = os.getenv(ENV_OUTPUT_MODE) or output_config.get("mode") or "typing"
+        mode = mode.lower()
+
+        if mode == "typing":
+            return TypingOutputHandler(self.kbd_controller)
+
+        if mode == "azure_tts":
+            azure_cfg = output_config.get("azure") or {}
+            key = os.getenv(ENV_AZURE_SPEECH_KEY) or azure_cfg.get("key")
+            region = os.getenv(ENV_AZURE_SPEECH_REGION) or azure_cfg.get("region")
+            voice = os.getenv(ENV_AZURE_SPEECH_VOICE) or azure_cfg.get(
+                "voice", "en-GB-SoniaNeural"
+            )
+
+            if not key:
+                raise RuntimeError(
+                    "Azure TTS output selected but no subscription key provided. "
+                    f"Set the {ENV_AZURE_SPEECH_KEY} environment variable or provide "
+                    "an equivalent configuration value."
+                )
+            if not region:
+                raise RuntimeError(
+                    "Azure TTS output selected but no region provided. "
+                    f"Set the {ENV_AZURE_SPEECH_REGION} environment variable or provide "
+                    "an equivalent configuration value."
+                )
+
+            return AzureSpeechOutputHandler(
+                subscription_key=key,
+                region=region,
+                voice=voice,
+            )
+
+        raise ValueError(
+            f"Unsupported output mode '{mode}'. "
+            "Valid options are 'typing' and 'azure_tts'."
+        )
+
+    def _normalize_mapping_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if config is None:
             return {}
 
         dict_config_type = None
@@ -198,16 +313,16 @@ class Chaplin:
         except ImportError:
             pass
 
-        if dict_config_type and isinstance(llm_config, dict_config_type):
+        if dict_config_type and isinstance(config, dict_config_type):
             assert omega_conf is not None
-            return omega_conf.to_container(llm_config, resolve=True)  # type: ignore[arg-type]
+            return omega_conf.to_container(config, resolve=True)  # type: ignore[arg-type]
 
-        if isinstance(llm_config, dict):
-            return dict(llm_config)
+        if isinstance(config, dict):
+            return dict(config)
 
         raise TypeError(
-            "llm_config must be a dict, OmegaConf DictConfig, or None. "
-            f"Received type: {type(llm_config)!r}"
+            "Configuration must be a dict, OmegaConf DictConfig, or None. "
+            f"Received type: {type(config)!r}"
         )
 
     def _load_llm_options(self, llm_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -422,8 +537,8 @@ class Chaplin:
                 out.release()
             cv2.destroyAllWindows()
 
-            # stop global hotkey listener
-            self.hotkey.stop()
+            # stop key listener
+            self.key_listener.stop()
 
             # stop async event loop
             self.loop.call_soon_threadsafe(self.loop.stop)
