@@ -113,18 +113,40 @@ class Chaplin:
 
     async def correct_output_async(self, output, sequence_num):
         # perform inference on the raw output to get back a "correct" version
-        response_payload = await self._invoke_llm(output)
+        is_fallback = False
+        try:
+            response_payload = await self._invoke_llm(output)
+            chat_output = self._parse_llm_response(response_payload)
+        except Exception as exc:
+            # fall back to raw output if LLM correction fails
+            print(
+                "\n\033[48;5;124m\033[97m\033[1m CORRECTION FAILED \033[0m:"
+                f" {exc}\nFalling back to raw transcription.\n"
+            )
+            fallback_text = output.strip()
+            if fallback_text and fallback_text[-1] not in ['.', '?', '!']:
+                fallback_text += '.'
+            if fallback_text:
+                fallback_text += ' '
+            chat_output = ChaplinOutput(
+                list_of_changes="LLM correction failed; raw lip-reading output used.",
+                corrected_text=fallback_text,
+            )
+            is_fallback = True
 
-        # get only the corrected text
-        chat_output = self._parse_llm_response(response_payload)
+        if not is_fallback:
+            # if last character isn't a sentence ending (happens sometimes), add a period
+            chat_output.corrected_text = chat_output.corrected_text.strip()
+            if chat_output.corrected_text and chat_output.corrected_text[-1] not in ['.', '?', '!']:
+                chat_output.corrected_text += '.'
 
-        # if last character isn't a sentence ending (happens sometimes), add a period
-        chat_output.corrected_text = chat_output.corrected_text.strip()
-        if chat_output.corrected_text[-1] not in ['.', '?', '!']:
-            chat_output.corrected_text += '.'
+            # add space at the end
+            chat_output.corrected_text += ' '
 
-        # add space at the end
-        chat_output.corrected_text += ' '
+        print(
+            "\n\033[48;5;28m\033[97m\033[1m CORRECTED OUTPUT \033[0m:"
+            f" {chat_output.corrected_text.strip()}\n"
+        )
 
         # wait until it's this task's turn to type
         async with self.typing_condition:
@@ -222,7 +244,8 @@ class Chaplin:
                 stream=False,
                 **self.llm_options,
             )
-            return await response.json()
+            payload_text = await response.text()
+            return self._decode_llm_payload(payload_text)
 
         # for sync models, run in a worker thread to avoid blocking the event loop
         def _call_model():
@@ -233,10 +256,22 @@ class Chaplin:
                 stream=False,
                 **self.llm_options,
             )
-            return response.json()
+            return response.text()
 
-        return await asyncio.get_running_loop().run_in_executor(
+        payload_text = await asyncio.get_running_loop().run_in_executor(
             self.executor, _call_model)
+        return self._decode_llm_payload(payload_text)
+
+    def _decode_llm_payload(self, payload):
+        if isinstance(payload, str):
+            payload = payload.strip()
+            if not payload:
+                return payload
+            try:
+                return json.loads(payload)
+            except json.JSONDecodeError:
+                return payload
+        return payload
 
     def _parse_llm_response(self, response_payload):
         try:

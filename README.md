@@ -35,7 +35,7 @@ Watch a demo of Chaplin [here](https://youtu.be/qlHi0As2alQ).
    ```sh
    uv sync --extra gemini                   # installs optional deps from pyproject for Gemini support
    export LLM_GEMINI_API_KEY=sk-...         # set provider key (or add it to .env)
-   CHAPLIN_LLM_MODEL=gemini:flash-2.5 \     # or use Hydra override: llm.model="gemini:flash-2.5"
+   CHAPLIN_LLM_MODEL=gemini-2.5-flash \     # or use Hydra override: llm.model="gemini-2.5-flash"
      uv run main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe
    ```
    For other providers, install their plugin manually via `uv pip install llm-<provider>` and set the matching API key (see `.env.example` for guidance).
@@ -63,7 +63,7 @@ Chaplin relies on the `llm` Python library for its text-correction step. By defa
 - Override from the command line using Hydra:  
   ```sh
   uv run main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe \
-    llm.model="gemini:flash-2.5"
+    llm.model="gemini-2.5-flash"
   ```
 - Or set environment variables:  
   `CHAPLIN_LLM_MODEL` (model id), `CHAPLIN_LLM_OPTIONS` (JSON dict of provider options), and `CHAPLIN_LLM_SYSTEM_PROMPT` (custom system instructions).
