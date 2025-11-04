@@ -38,6 +38,7 @@ Watch a demo of Chaplin [here](https://youtu.be/qlHi0As2alQ).
    CHAPLIN_LLM_MODEL=gemini-2.5-flash \     # or use Hydra override: llm.model="gemini-2.5-flash"
      uv run main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe
    ```
+   Or - edit the Hydra config to set your preferred model permanently. (its in hydra_configs/default.yaml)
    For other providers, install their plugin manually via `uv pip install llm-<provider>` and set the matching API key (see `.env.example` for guidance).
 4. Install [`uv`](https://github.com/astral-sh/uv).
 5. Install the Python dependencies declared in `pyproject.toml`:
@@ -65,6 +66,18 @@ Chaplin relies on the `llm` Python library for its text-correction step. By defa
   uv run main.py config_filename=./configs/LRS3_V_WER19.1.ini detector=mediapipe \
     llm.model="gemini-2.5-flash"
   ```
+- Or edit your Hydra defaults (recommended when you want a consistent setup):
+  ```yaml
+  # hydra_configs/default.yaml
+  camera_index: 1        # pick an alternate webcam
+  llm:
+    model: "gemini-2.5-flash"
+    options:
+      temperature: 0.4   # any provider-specific options supported by llm
+    system_prompt: null  # keep default prompt; override with custom text if needed
+  output:
+    mode: typing          # swap to azure_tts for spoken playback
+  ```
 - Or set environment variables:  
   `CHAPLIN_LLM_MODEL` (model id), `CHAPLIN_LLM_OPTIONS` (JSON dict of provider options), and `CHAPLIN_LLM_SYSTEM_PROMPT` (custom system instructions).
 - Plugins and keys: install the relevant `llm-*` plugin (for example `pip install llm-gemini`) and ensure the provider-specific environment variables—such as `LLM_GEMINI_API_KEY`—are set before launching Chaplin.
@@ -74,7 +87,7 @@ Chaplin relies on the `llm` Python library for its text-correction step. By defa
 By default Chaplin uses `pynput` to type the corrected text into the active window. You can switch the output behaviour without touching the code:
 
 - Keep typing (default): ensure `output.mode=typing` in your Hydra config (or leave it unset).
-- Azure TTS: install the optional dependency and set the Azure credentials before launching Chaplin:
+- Azure TTS: install the optional dependency and set the Azure credentials before launching Chaplin (or edit the hydra config):
   ```sh
   uv sync --extra azure
   export CHAPLIN_OUTPUT_MODE=azure_tts
